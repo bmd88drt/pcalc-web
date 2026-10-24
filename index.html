@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PCalc 1.4 Web - Dimensionamento de Pilares de Concreto Armado (NBR 6118)</title>
+  <meta name="description" content="Software para análise e dimensionamento de pilares de concreto armado sob flexão composta oblíqua e efeitos de 2ª ordem conforme a ABNT NBR 6118.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Segoe+UI:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="assets/iconPcalc.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="window-shell">
+    <!-- BARRA DE TÍTULO ESTILO APLICAÇÃO PCALC -->
+    <div class="app-titlebar">
+      <div class="titlebar-left">
+        <span class="app-icon">P</span>
+        <span id="windowTitle" class="titlebar-text">PCalc 1.4 Web - [Pilar Padrão 20×40]</span>
+      </div>
+      <div class="titlebar-right">
+        <div id="statusBadge" class="status-pill safe">
+          <span class="pill-dot"></span>
+          <span id="statusText">CALCULANDO...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- MENU PRINCIPAL CLÁSSICO -->
+    <nav class="desktop-menubar">
+      <div class="menu-item">
+        <span class="menu-trigger">Arquivo</span>
+        <div class="dropdown-menu">
+          <button id="menuNovo" class="dropdown-action">Novo Projeto (do Zero)</button>
+          <button id="menuAbrir" class="dropdown-action">Abrir Projeto (.pcalc)...</button>
+          <button id="menuSalvar" class="dropdown-action">Gravar / Salvar Projeto (.pcalc)</button>
+          <button id="menuSalvarComo" class="dropdown-action">Salvar Como (.pcalc / .json)...</button>
+          <div class="menu-divider"></div>
+          <button id="menuExemploPadrao" class="dropdown-action">Carregar Exemplo: Padrão 20×40</button>
+          <button id="menuExemploCircular" class="dropdown-action">Carregar Exemplo: Circular Ø35</button>
+          <button id="menuExemploEsbelto" class="dropdown-action">Carregar Exemplo: Alta Esbeltez</button>
+          <div class="menu-divider"></div>
+          <button id="menuExportarTxt" class="dropdown-action">Exportar Memória (.txt)...</button>
+          <button id="menuImprimir" class="dropdown-action">Imprimir / Salvar PDF...</button>
+        </div>
+      </div>
+
+      <div class="menu-item">
+        <span class="menu-trigger">Dados</span>
+        <div class="dropdown-menu">
+          <button id="menuGeometria" class="dropdown-action">Geometria...</button>
+          <button id="menuMateriais" class="dropdown-action">Materiais (fck digitável)...</button>
+          <div class="menu-divider"></div>
+          <button id="menuArmacaoRapida" class="dropdown-action">Armação: Edição Rápida...</button>
+          <button id="menuArmacaoCoord" class="dropdown-action">Armação: Por Coordenadas...</button>
+          <button id="menuApagarArmaduras" class="dropdown-action text-danger">Apagar Todas as Armaduras</button>
+          <div class="menu-divider"></div>
+          <button id="menuEsforcos" class="dropdown-action">Esforços Solicitantes...</button>
+          <button id="menu2Ord" class="dropdown-action">2ª Ordem Local (Métodos Gerais)...</button>
+          <button id="menuCriterios" class="dropdown-action">Critérios e Precisão...</button>
+        </div>
+      </div>
+
+      <div class="menu-item">
+        <span class="menu-trigger">Resultados</span>
+        <div class="dropdown-menu">
+          <button id="menuVerFCO" class="dropdown-action">Diagrama N, Mx, My (FCO)</button>
+          <button id="menuVerFCNx" class="dropdown-action">Diagrama N, Mx (FCN)</button>
+          <button id="menuVerFCNy" class="dropdown-action">Diagrama N, My (FCN)</button>
+          <button id="menuVerDeformacao" class="dropdown-action">Deformações na Seção (ε)</button>
+          <button id="menuVerTensao" class="dropdown-action">Tensões na Seção (σ)</button>
+          <div class="menu-divider"></div>
+          <button id="menuAvisos" class="dropdown-action">Avisos e Normas (NBR 6118)</button>
+          <button id="menuMemoria" class="dropdown-action">Memória de Cálculo Completa</button>
+        </div>
+      </div>
+
+      <div class="menu-item">
+        <span class="menu-trigger" id="menuSobre">Sobre</span>
+      </div>
+    </nav>
+
+    <!-- BARRA DE FERRAMENTAS COM ÍCONES DO PCALC -->
+    <div class="pcalc-toolbar">
+      <button id="btnToolNovo" class="tool-btn" title="Começar novo projeto do zero">
+        <svg class="tool-icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2" fill="none"/><line x1="12" y1="11" x2="12" y2="17" stroke="currentColor" stroke-width="2"/><line x1="9" y1="14" x2="15" y2="14" stroke="currentColor" stroke-width="2"/></svg>
+        <span>Novo</span>
+      </button>
+
+      <button id="btnToolAbrir" class="tool-btn" title="Abrir projeto salvo (.pcalc / .json)">
+        <svg class="tool-icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+        <span>Abrir</span>
+      </button>
+
+      <button id="btnToolSalvar" class="tool-btn" title="Gravar projeto em arquivo (.pcalc)">
+        <svg class="tool-icon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" stroke="currentColor" stroke-width="2" fill="none"/><polyline points="17 21 17 13 7 13 7 21" stroke="currentColor" stroke-width="1.5" fill="none"/><polyline points="7 3 7 8 15 8" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+        <span>Gravar</span>
+      </button>
+
+      <input type="file" id="inputAbrirArquivo" accept=".pcalc,.json" style="display:none;">
+
+      <div class="toolbar-sep"></div>
+
+      <button id="btnToolGeometria" class="tool-btn" title="Entrada de dados: Geometria">
+        <svg class="tool-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="1.5" stroke="currentColor" stroke-width="2" fill="none"/><line x1="3" y1="9" x2="21" y2="9" stroke="currentColor" stroke-width="1.5"/><line x1="9" y1="9" x2="9" y2="21" stroke="currentColor" stroke-width="1.5"/></svg>
+        <span>Geometria</span>
+      </button>
+
+      <button id="btnToolMateriais" class="tool-btn" title="Entrada de dados: Materiais (fck digitado e NBR 6118:2026)">
+        <svg class="tool-icon" viewBox="0 0 24 24"><path d="M4 19L12 4L20 19H4Z" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="14" r="2.5" fill="currentColor"/></svg>
+        <span>Materiais</span>
+      </button>
+
+      <div class="tool-split-dropdown">
+        <button id="btnToolArmacao" class="tool-btn" title="Entrada de dados: Armação">
+          <svg class="tool-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="8" cy="8" r="2" fill="currentColor"/><circle cx="16" cy="8" r="2" fill="currentColor"/><circle cx="16" cy="16" r="2" fill="currentColor"/><circle cx="8" cy="16" r="2" fill="currentColor"/></svg>
+          <span>Armação</span>
+        </button>
+        <button id="btnToolArmacaoMenu" class="tool-btn-arrow" title="Opções de armação">▾</button>
+        <div id="dropdownArmacaoOptions" class="dropdown-menu mini">
+          <button id="optArmacaoRapida" class="dropdown-action">Edição Rápida...</button>
+          <button id="optArmacaoCoord" class="dropdown-action">Por Coordenadas...</button>
+        </div>
+      </div>
+
+      <button id="btnToolEsforcos" class="tool-btn" title="Entrada de dados: Esforços">
+        <svg class="tool-icon" viewBox="0 0 24 24"><line x1="12" y1="21" x2="12" y2="3" stroke="currentColor" stroke-width="2"/><polyline points="6 9 12 3 18 9" stroke="currentColor" stroke-width="2" fill="none"/><line x1="4" y1="21" x2="20" y2="21" stroke="currentColor" stroke-width="2"/></svg>
+        <span>Esforços</span>
+      </button>
+
+      <button id="btnTool2Ord" class="tool-btn" title="2ª Ordem Local (Métodos Gerais NBR 6118)">
+        <svg class="tool-icon" viewBox="0 0 24 24"><path d="M4 18 C 10 18, 14 6, 20 6" stroke="currentColor" stroke-width="2.5" fill="none"/><polyline points="15 6 20 6 20 11" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+        <span>2ª Ordem</span>
+      </button>
+
+      <button id="btnToolCriterios" class="tool-btn" title="Critérios e Precisão">
+        <svg class="tool-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" fill="none"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+        <span>Critérios</span>
+      </button>
+
+      <div class="toolbar-sep"></div>
+
+      <button id="btnToolCalcular" class="tool-btn btn-calc" title="Calcular dimensionamento do pilar">
+        <svg class="tool-icon-calc" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3" fill="currentColor"/></svg>
+        <strong>Calcular!</strong>
+      </button>
+
+      <button id="btnToolAvisos" class="tool-btn" title="Avisos e Verificações Normativas">
+        <svg class="tool-icon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" stroke-width="2" fill="none"/><line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>
+        <span>Avisos</span>
+        <span id="badgeAvisosCount" class="badge-count" style="display:none;">0</span>
+      </button>
+
+      <button id="btnToolMemoria" class="tool-btn" title="Memória de Cálculo / Relatório">
+        <svg class="tool-icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2" fill="none"/><polyline points="14 2 14 8 20 8" stroke="currentColor" stroke-width="1.5" fill="none"/><line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="1.5"/><line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" stroke-width="1.5"/></svg>
+        <span>Memória</span>
+      </button>
+    </div>
+
+    <!-- ÁREA PRINCIPAL DIVIDIDA EM PAINÉIS (IGUAL AO PCALC 1.4) -->
+    <main class="pcalc-workspace">
+      <!-- LINHA SUPERIOR -->
+      <div class="workspace-top-row">
+        <!-- PAINEL 1: SEÇÃO TRANSVERSAL -->
+        <section class="pcalc-panel panel-secao">
+          <div class="panel-header">
+            <span class="panel-title">Seção Transversal</span>
+            <div class="panel-tools">
+              <label class="checkbox-mini" title="Alternar entre fundo Bege Original (PCalc 1.4) e Escuro Moderno">
+                <input type="checkbox" id="chkEscalaBege" checked>
+                <span>Fundo Bege</span>
+              </label>
+              <label class="checkbox-mini" title="Visualizar discretização em fibras de concreto">
+                <input type="checkbox" id="chkFibras">
+                <span>Fibras</span>
+              </label>
+              <button id="btnSecaoCoordDirect" class="btn-xs" title="Lançar armadura por coordenadas">+ Coordenadas</button>
+            </div>
+          </div>
+          <div class="panel-body secao-canvas-wrapper">
+            <div class="canvas-zoom-controls">
+              <button id="btnSecaoZoomIn" class="btn-zoom" title="Aumentar Zoom (ou use a rodinha do mouse)">🔍+</button>
+              <button id="btnSecaoZoomOut" class="btn-zoom" title="Diminuir Zoom (ou use a rodinha do mouse)">🔍−</button>
+              <button id="btnSecaoZoomReset" class="btn-zoom" title="Redefinir Zoom (ou duplo-clique)">⟲ 100%</button>
+            </div>
+            <canvas id="canvasSecao" width="400" height="340"></canvas>
+          </div>
+        </section>
+
+        <!-- PAINEL 2: RESULTADOS -->
+        <section class="pcalc-panel panel-resultados">
+          <div class="panel-header">
+            <span class="panel-title">Resultados</span>
+            <div class="panel-tools">
+              <label class="checkbox-mini" title="Alternar entre fundo Bege Original (PCalc 1.4) e Escuro Moderno">
+                <input type="checkbox" id="chkEscalaBegeRes" checked>
+                <span>Fundo Bege</span>
+              </label>
+              <div class="comb-selector-inline">
+                <label for="selectComb">Combinação:</label>
+                <select id="selectComb" class="select-comb-compact">
+                  <option value="0">Comb 1</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel-body resultados-layout">
+            <!-- Texto com dados técnicos da seção e combinação -->
+            <div class="resumo-text-box" id="resumoTextBox">
+              <div class="resumo-line"><span class="lbl">Taxa de armadura:</span> <strong id="txtTaxaAs">0.92 %</strong></div>
+              <div class="resumo-line"><span class="lbl">Esbeltez &lambda;x:</span> <strong id="txtLambdaX">25.98</strong></div>
+              <div class="resumo-line"><span class="lbl">Esbeltez &lambda;y:</span> <strong id="txtLambdaY">51.96</strong></div>
+              <div class="resumo-line"><span class="lbl">Concreto:</span> <strong id="txtFck">fck = 30 MPa</strong></div>
+              <div class="resumo-line"><span class="lbl">FS Seção Inspecionada:</span> <strong id="txtFSSecVal" class="val-fs-sec">FS = 1.63</strong></div>
+              <div class="resumo-line"><span class="lbl">FS Mín. Combinação:</span> <strong id="txtFSCombVal" class="val-safe">FS = 1.63</strong></div>
+              <div class="resumo-line-crit" id="txtFSCritBox">
+                <span class="lbl">Fator de Segurança Geral:</span>
+                <strong id="txtFSCritVal" class="val-safe">FS = 1.63</strong>
+              </div>
+            </div>
+
+            <!-- Canvas central do gráfico de resultados -->
+            <div class="resultados-canvas-wrapper">
+              <div class="canvas-zoom-controls">
+                <button id="btnZoomIn" class="btn-zoom" title="Aumentar Zoom (ou use a rodinha do mouse)">🔍+</button>
+                <button id="btnZoomOut" class="btn-zoom" title="Diminuir Zoom (ou use a rodinha do mouse)">🔍−</button>
+                <button id="btnZoomReset" class="btn-zoom" title="Redefinir Zoom (ou duplo-clique)">⟲ 100%</button>
+              </div>
+              <canvas id="canvasResultados" width="440" height="320"></canvas>
+            </div>
+
+            <!-- 5 Botões Toggle verticais do PCalc original -->
+            <div class="toggle-buttons-bar">
+              <button class="btn-graph-toggle active" data-graph="fco" title="Diagrama de interação N, Mx, My (FCO)">
+                <span class="btn-toggle-badge">FCO</span>
+                <span class="btn-toggle-label">Mx × My</span>
+              </button>
+              <button class="btn-graph-toggle" data-graph="fcnx" title="Diagrama de interação N, Mx (FCN)">
+                <span class="btn-toggle-badge">FCNx</span>
+                <span class="btn-toggle-label">N × Mx</span>
+              </button>
+              <button class="btn-graph-toggle" data-graph="fcny" title="Diagrama de interação N, My (FCN)">
+                <span class="btn-toggle-badge">FCNy</span>
+                <span class="btn-toggle-label">N × My</span>
+              </button>
+              <button class="btn-graph-toggle" data-graph="deformacao" title="Deformações na seção (ε)">
+                <span class="btn-toggle-badge">ε</span>
+                <span class="btn-toggle-label">Deformação</span>
+              </button>
+              <button class="btn-graph-toggle" data-graph="tensao" title="Tensões na seção (σ)">
+                <span class="btn-toggle-badge">σ</span>
+                <span class="btn-toggle-label">Tensão</span>
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- LINHA INFERIOR: PAINEL DE ESFORÇOS -->
+      <div class="workspace-bottom-row">
+        <section class="pcalc-panel panel-esforcos-gerais">
+          <div class="panel-header">
+            <span class="panel-title">Esforços e Subdivisões do Pilar</span>
+            <span class="panel-subtitle" id="lblSubdivisoesInfo">Clique em uma subdivisão 'z' para inspecionar</span>
+          </div>
+
+          <div class="panel-body esforcos-grid-container">
+            <!-- TABELA DE SUBDIVISÕES Z DO PILAR (OU COMBINAÇÕES) -->
+            <div class="tabela-secoes-wrapper">
+              <table id="tabelaSubdivisoes" class="tabela-pcalc">
+                <thead>
+                  <tr id="theadRowSubdiv">
+                    <th>z</th>
+                    <th>Nsd (kN)</th>
+                    <th>Msd,x (kN·m)</th>
+                    <th>Msd,y (kN·m)</th>
+                    <th>F.S.</th>
+                  </tr>
+                </thead>
+                <tbody id="tbodySubdivisoes">
+                  <!-- Linhas geradas dinamicamente via JS -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- PAINEL GRÁFICO DOS DIAGRAMAS AO LONGO DO PILAR (DesenhaEsforcos.java) -->
+            <div class="diagramas-pilar-wrapper">
+              <canvas id="canvasEsforcosPilar" width="620" height="210"></canvas>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- STATUSBAR INFERIOR -->
+    <footer class="app-statusbar">
+      <div class="status-item"><span id="sbSecao">Retangular 20×40 cm</span></div>
+      <div class="status-item"><span id="sbFck">fck = 30 MPa (NBR 6118)</span></div>
+      <div class="status-item"><span id="sbArmacao">6 Ø12.5 mm (As = 7.36 cm², 0.92%)</span></div>
+      <div class="status-item"><span id="sbMetodo2Ord">Método Geral N, Mx, My, 1/r</span></div>
+      <div class="status-item status-right"><span id="sbStatusMsg">Pronto para cálculo.</span></div>
+    </footer>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- MODAIS / DIÁLOGOS CLÁSSICOS DO PCALC -->
+  <!-- ======================================================================= -->
+
+  <!-- 1. DIÁLOGO GEOMETRIA -->
+  <div id="modalGeometria" class="pcalc-modal-backdrop">
+    <div class="pcalc-dialog">
+      <div class="dialog-titlebar">
+        <span>Entrada de dados: Geometria</span>
+        <button class="dialog-close">&times;</button>
+      </div>
+      <div class="dialog-content">
+        <fieldset class="dialog-fieldset">
+          <legend>Seção Transversal</legend>
+          <div class="form-row">
+            <label>Tipo de seção:</label>
+            <select id="dlgSecaoTipo" class="dialog-select">
+              <option value="Retangular">Retangular</option>
+              <option value="Circular">Circular</option>
+              <option value="Retangular Vazada">Retangular Vazada</option>
+              <option value="Circular Vazada">Circular Vazada</option>
+            </select>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-row" id="rowDimX">
+              <label id="lblDimX">Largura hx (cm):</label>
+              <input type="number" id="dlgSecaoHx" value="20" min="10" max="400" step="1">
+            </div>
+            <div class="form-row" id="rowDimY">
+              <label id="lblDimY">Altura hy (cm):</label>
+              <input type="number" id="dlgSecaoHy" value="40" min="10" max="400" step="1">
+            </div>
+          </div>
+          <div class="form-grid-2" id="rowVazado" style="display:none;">
+            <div class="form-row">
+              <label id="lblDimX2">Furo interno hx2 / Dint (cm):</label>
+              <input type="number" id="dlgSecaoHx2" value="10" min="5" max="350" step="1">
+            </div>
+            <div class="form-row" id="colDimY2">
+              <label>Furo interno hy2 (cm):</label>
+              <input type="number" id="dlgSecaoHy2" value="20" min="5" max="350" step="1">
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset class="dialog-fieldset">
+          <legend>Comprimento e Vinculação</legend>
+          <div class="form-row">
+            <label>Comprimento livre L (m):</label>
+            <input type="number" id="dlgSecaoL" value="3.0" min="0.5" max="30.0" step="0.1">
+          </div>
+          <div class="form-row">
+            <label>Condição de vinculação:</label>
+            <select id="dlgSecaoVinculacao" class="dialog-select">
+              <option value="1">Biapoiado (le = 1.0 &times; L)</option>
+              <option value="2">Engastado e Livre (le = 2.0 &times; L)</option>
+              <option value="0">Seção Isolada (sem efeitos de 2ª ordem global)</option>
+            </select>
+          </div>
+        </fieldset>
+      </div>
+      <div class="dialog-footer">
+        <button class="dialog-btn dialog-btn-primary" id="btnSalvarGeometria">Ok</button>
+        <button class="dialog-btn dialog-close">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. DIÁLOGO MATERIAIS (COM DIGITAÇÃO LIVRE DO FCK E NORMA NBR 6118) -->
+  <div id="modalMateriais" class="pcalc-modal-backdrop">
+    <div class="pcalc-dialog dialog-wide">
+      <div class="dialog-titlebar">
+        <span>Entrada de dados: Materiais (NBR 6118)</span>
+        <button class="dialog-close">&times;</button>
+      </div>
+      <div class="dialog-content dialog-columns-2">
+        <div class="col-left">
+          <fieldset class="dialog-fieldset">
+            <legend>Concreto</legend>
+            <div class="form-row">
+              <label><strong>Resistência fck:</strong></label>
+              <div class="input-with-unit">
+                <input type="number" id="dlgFckDigitado" value="30" min="15" max="90" step="1" class="input-bold">
+                <span class="unit">MPa</span>
+              </div>
+              <span class="field-hint">Digite qualquer valor (ex: 20, 25, 30, 32, 40, 50, 60, 75...)</span>
+            </div>
+            <div class="quick-fck-chips">
+              <button type="button" class="chip-fck" data-val="20">C20</button>
+              <button type="button" class="chip-fck" data-val="25">C25</button>
+              <button type="button" class="chip-fck" data-val="30">C30</button>
+              <button type="button" class="chip-fck" data-val="35">C35</button>
+              <button type="button" class="chip-fck" data-val="40">C40</button>
+              <button type="button" class="chip-fck" data-val="50">C50</button>
+              <button type="button" class="chip-fck" data-val="60">C60</button>
+              <button type="button" class="chip-fck" data-val="80">C80</button>
+            </div>
+            <div class="form-row" style="margin-top:10px;">
+              <input type="range" id="dlgSliderFck" min="15" max="90" step="1" value="30">
+            </div>
+            <div class="form-grid-2">
+              <div class="form-row">
+                <label>Coeficiente &gamma;c:</label>
+                <input type="number" id="dlgGamaC" value="1.40" min="1.0" max="2.0" step="0.05">
+              </div>
+              <div class="form-row">
+                <label>Tensão fcd (kN/cm²):</label>
+                <input type="text" id="dlgValFcd" value="2.14" readonly disabled>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="dialog-fieldset">
+            <legend>Aço da Armadura</legend>
+            <div class="form-row">
+              <label>Tipo de Aço:</label>
+              <select id="dlgAcoTipo" class="dialog-select">
+                <option value="500">CA-50 (fyk = 500 MPa)</option>
+                <option value="600">CA-60 (fyk = 600 MPa)</option>
+                <option value="250">CA-25 (fyk = 250 MPa)</option>
+              </select>
+            </div>
+            <div class="form-grid-2">
+              <div class="form-row">
+                <label>fyk (MPa):</label>
+                <input type="number" id="dlgFyk" value="500" min="200" max="800" step="10">
+              </div>
+              <div class="form-row">
+                <label>Coeficiente &gamma;s:</label>
+                <input type="number" id="dlgGamaS" value="1.15" min="1.0" max="1.5" step="0.05">
+              </div>
+            </div>
+            <div class="form-row">
+              <label>Módulo Es (GPa):</label>
+              <input type="number" id="dlgEs" value="210" min="150" max="250" step="5">
+            </div>
+          </fieldset>
+        </div>
+
+        <div class="col-right">
+          <fieldset class="dialog-fieldset h-100">
+            <legend>Diagrama Tensão-Deformação NBR 6118 (Fig. 8.2)</legend>
+            <div class="nbr-formula-box">
+              <div class="formula-line">&sigma;c = 0,85 &middot; &eta;c &middot; fcd &middot; [1 - (1 - &epsilon;c / &epsilon;c2)^n]</div>
+              <div class="formula-details" id="lblDetalhesNBR">
+                <!-- Preenchido via JS conforme fck digitado -->
+              </div>
+            </div>
+            <div class="concreto-canvas-wrapper">
+              <canvas id="canvasLeiConcreto" width="340" height="210"></canvas>
+            </div>
+          </fieldset>
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button class="dialog-btn dialog-btn-primary" id="btnSalvarMateriais">Ok</button>
+        <button class="dialog-btn dialog-close">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. DIÁLOGO ARMAÇÃO (COM LANÇAMENTO POR COORDENADAS E EDIÇÃO RÁPIDA) -->
+  <div id="modalArmacao" class="pcalc-modal-backdrop">
+    <div class="pcalc-dialog dialog-wide-armacao">
+      <div class="dialog-titlebar">
+        <span>Entrada de dados: Armação</span>
+        <button class="dialog-close">&times;</button>
+      </div>
+      <div class="dialog-tabbar">
+        <button id="tabArmacaoBtnRapida" class="dialog-tab active">Edição Rápida</button>
+        <button id="tabArmacaoBtnCoord" class="dialog-tab">Por Coordenadas</button>
+      </div>
+      <div class="dialog-content">
+        <!-- ABA 1: EDIÇÃO RÁPIDA -->
+        <div id="paneArmacaoRapida" class="armacao-pane active">
+          <div class="form-grid-2">
+            <div class="form-row">
+              <label id="lblArmNx">Número de barras em X (nx):</label>
+              <input type="number" id="dlgArmNx" value="2" min="1" max="30" step="1">
+            </div>
+            <div class="form-row" id="rowArmNy">
+              <label id="lblArmNy">Número de barras em Y (ny):</label>
+              <input type="number" id="dlgArmNy" value="3" min="1" max="30" step="1">
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-row">
+              <label>Diâmetro das barras Ø (mm):</label>
+              <select id="dlgArmFi" class="dialog-select">
+                <option value="5.0">Ø 5.0 mm</option>
+                <option value="6.3">Ø 6.3 mm</option>
+                <option value="8.0">Ø 8.0 mm</option>
+                <option value="10.0">Ø 10.0 mm</option>
+                <option value="12.5" selected>Ø 12.5 mm</option>
+                <option value="16.0">Ø 16.0 mm</option>
+                <option value="20.0">Ø 20.0 mm</option>
+                <option value="25.0">Ø 25.0 mm</option>
+                <option value="32.0">Ø 32.0 mm</option>
+                <option value="40.0">Ø 40.0 mm</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label>Cobrimento d' (cm):</label>
+              <input type="number" id="dlgArmDLinha" value="3.5" min="1.5" max="10.0" step="0.5">
+            </div>
+          </div>
+          <button id="btnGerarArmacaoRapida" class="btn-action-dialog" style="margin-top:12px;">Gerar Armação</button>
+        </div>
+
+        <!-- ABA 2: POR COORDENADAS (FIEL AO JFRAME DO PCALC) -->
+        <div id="paneArmacaoCoord" class="armacao-pane">
+          <div class="coord-mode-selector">
+            <label class="radio-label">
+              <input type="radio" name="modoCoord" id="rdCoordBarra" value="barra" checked>
+              <span>Adicionar uma barra</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="modoCoord" id="rdCoordLinha" value="linha">
+              <span>Adicionar uma linha de barras</span>
+            </label>
+            <label class="radio-label" id="lblCoordArco">
+              <input type="radio" name="modoCoord" id="rdCoordArco" value="arco">
+              <span>Adicionar arco de barras (circular)</span>
+            </label>
+          </div>
+
+          <div class="coord-inputs-box">
+            <div class="form-grid-4">
+              <div class="form-row" id="colNumBarrasLinha" style="display:none;">
+                <label>Nº de barras:</label>
+                <input type="number" id="dlgCoordN" value="2" min="1" max="50">
+              </div>
+              <div class="form-row">
+                <label>Diâmetro Ø (mm):</label>
+                <select id="dlgCoordFi" class="dialog-select">
+                  <option value="5.0">5.0</option>
+                  <option value="6.3">6.3</option>
+                  <option value="8.0">8.0</option>
+                  <option value="10.0">10.0</option>
+                  <option value="12.5" selected>12.5</option>
+                  <option value="16.0">16.0</option>
+                  <option value="20.0">20.0</option>
+                  <option value="25.0">25.0</option>
+                  <option value="32.0">32.0</option>
+                  <option value="40.0">40.0</option>
+                </select>
+              </div>
+
+              <!-- Coordenadas X / Y (origem canto inferior esquerdo para retangular; centro para circular) -->
+              <div class="form-row" id="colXi">
+                <label id="lblXi">xi (cm):</label>
+                <input type="number" id="dlgCoordXi" value="3.5" step="0.5">
+              </div>
+              <div class="form-row" id="colYi">
+                <label id="lblYi">yi (cm):</label>
+                <input type="number" id="dlgCoordYi" value="3.5" step="0.5">
+              </div>
+              <div class="form-row" id="colXf" style="display:none;">
+                <label id="lblXf">xf (cm):</label>
+                <input type="number" id="dlgCoordXf" value="16.5" step="0.5">
+              </div>
+              <div class="form-row" id="colYf" style="display:none;">
+                <label id="lblYf">yf (cm):</label>
+                <input type="number" id="dlgCoordYf" value="3.5" step="0.5">
+              </div>
+            </div>
+            <div class="coord-btn-row">
+              <button id="btnInserirBarraCoord" class="btn-action-dialog">+ Inserir na Armadura</button>
+              <button id="btnLimparTodasBarras" class="btn-action-dialog btn-danger">Apagar Todas as Armaduras</button>
+            </div>
+          </div>
+
+          <!-- TABELA DE BARRAS CADASTRADAS -->
+          <div class="tabela-barras-container">
+            <table class="tabela-barras-pcalc" id="tabelaBarrasCoord">
+              <thead>
+                <tr>
+                  <th>Barra</th>
+                  <th>Ø (mm)</th>
+                  <th>X (cm)</th>
+                  <th>Y (cm)</th>
+                  <th>Área (cm²)</th>
+                  <th>Ação</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyBarrasCoord">
+                <!-- Gerado dinamicamente -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- RESUMO DA ARMADURA (COMUM ÀS DUAS ABAS) -->
+        <div class="armacao-summary-banner">
+          <div>Total: <strong id="lblResumoTotalBarras">6 barras</strong></div>
+          <div>Área de Aço As: <strong id="lblResumoAreaAs">7.36 cm²</strong></div>
+          <div>Taxa &rho;s: <strong id="lblResumoTaxaAs">0.92 %</strong></div>
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button class="dialog-btn dialog-btn-primary" id="btnSalvarArmacao">Ok</button>
+        <button class="dialog-btn dialog-close">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. DIÁLOGO ESFORÇOS SOLICITANTES -->
+  <div id="modalEsforcos" class="pcalc-modal-backdrop">
+    <div class="pcalc-dialog dialog-wide">
+      <div class="dialog-titlebar">
+        <span>Entrada de dados: Esforços Solicitantes</span>
+        <button class="dialog-close">&times;</button>
+      </div>
+      <div class="dialog-content">
+        <div class="esforcos-toolbar-inline">
+          <button id="btnAddCombRow" class="btn-action-dialog">+ Nova Combinação</button>
+          <div class="form-inline-item">
+            <label>Coeficiente &gamma;f:</label>
+            <input type="number" id="dlgGamaF" value="1.40" min="1.0" max="1.8" step="0.05" style="width:70px;">
+          </div>
+        </div>
+
+        <div class="tabela-esforcos-modal-wrapper">
+          <table class="tabela-pcalc" id="tabelaEsforcosModal">
+            <thead>
+              <tr>
+                <th>Comb</th>
+                <th>Nsd (kN)</th>
+                <th>Msxd,topo</th>
+                <th>Msxd,base</th>
+                <th>Msyd,topo</th>
+                <th>Msyd,base</th>
+                <th>Remover</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyEsforcosModal">
+              <!-- Gerado via JS -->
+            </tbody>
+          </table>
+        </div>
+        <p class="field-hint" style="margin-top:8px;">* Compressão negativa em Nsd. Valores são multiplicados por &gamma;f no cálculo.</p>
+      </div>
+      <div class="dialog-footer">
+        <button class="dialog-btn dialog-btn-primary" id="btnSalvarEsforcos">Ok</button>
+        <button class="dialog-btn dialog-close">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. DIÁLOGO 2ª ORDEM LOCAL (CONFORME A IMAGEM DO USUÁRIO) -->
+  <div id="modal2Ord" class="pcalc-modal-backdrop">
+    <div class="pcalc-dialog">
+      <div class="dialog-titlebar">
+        <span>2ª Ordem local</span>
+        <button class="dialog-close">&times;</button>
+      </div>
+      <div class="dialog-content">
+        <fieldset class="dialog-fieldset">
+          <legend>Consideração dos efeitos locais de 2ª ordem:</legend>
+          <div class="radio-stack">
+            <label class="radio-label">
+              <input type="radio" name="optCalcular2Ord" id="rdCalc2Ord1" value="1">
+              <span>Sempre calcular os efeitos locais de 2ª Ordem</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="optCalcular2Ord" id="rdCalc2Ord2" value="2" checked>
+              <span>Calcular efeitos locais de 2ª Ordem somente se o índice de esbeltez for maior que o valor limite &lambda;1</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="optCalcular2Ord" id="rdCalc2Ord3" value="3">
+              <span>Não calcular os efeitos locais de 2ª Ordem</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="dialog-fieldset">
+          <legend>Método de cálculo para 2ª Ordem</legend>
+          <div class="radio-stack">
+            <label class="radio-label">
+              <input type="radio" name="optMetodo2Ord" id="rdMetodo1" value="1">
+              <span>Pilar-Padrão com curvatura aproximada</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="optMetodo2Ord" id="rdMetodo2" value="2">
+              <span>Pilar-Padrão com rigidez &kappa; aproximada</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="optMetodo2Ord" id="rdMetodo3" value="3">
+              <span>Pilar-Padrão acoplado com diagrama N, M, 1/r</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="optMetodo2Ord" id="rdMetodo4" value="4">
+              <span>Método Geral acoplado com diagrama N, M, 1/r</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="optMetodo2Ord" id="rdMetodo5" value="5" checked>
+              <span><strong>Método Geral acoplado com diagrama N, Mx, My, 1/r<br><small style="color:#94a3b8;">(considera as direções acopladas)</small></strong></span>
+            </label>
+          </div>
+        </fieldset>
+
+        <div class="checkbox-box-single">
+          <input type="checkbox" id="dlgCheckLimMb" checked>
+          <label for="dlgCheckLimMb">Para pilares biapoiados, limitar o menor valor absoluto entre os momentos no topo e na base em menos a metade do maior valor ( Mb &ge; -0.5 Ma )</label>
+        </div>
+
+        <div class="form-row" style="margin-top:10px;">
+          <label>Fator de majoração &gamma;f3 (2ª ordem):</label>
+          <input type="number" id="dlgGamaF3" value="1.10" min="1.0" max="1.3" step="0.05" style="width:80px;">
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button class="dialog-btn dialog-btn-primary" id="btnSalvar2Ord">Ok</button>
+        <button class="dialog-btn dialog-close">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. DIÁLOGO CRITÉRIOS -->
+  <div id="modalCriterios" class="pcalc-modal-backdrop">
+    <div class="pcalc-dialog">
+      <div class="dialog-titlebar">
+        <span>Critérios de Cálculo e Precisão</span>
+        <button class="dialog-close">&times;</button>
+      </div>
+      <div class="dialog-content">
+        <fieldset class="dialog-fieldset">
+          <legend>Momento Mínimo NBR 6118</legend>
+          <div class="checkbox-box-single">
+            <input type="checkbox" id="dlgCheckMomentoMin" checked>
+            <label for="dlgCheckMomentoMin">Verificar momento mínimo de 1ª ordem: M1d,min = Nsd(0,015 + 0,03h)</label>
+          </div>
+        </fieldset>
+
+        <fieldset class="dialog-fieldset">
+          <legend>Taxa de Armadura</legend>
+          <div class="form-grid-2">
+            <div class="form-row">
+              <label>Taxa Mínima &rho;min (%):</label>
+              <input type="number" id="dlgTaxaMin" value="0.40" min="0.15" max="1.5" step="0.05">
+            </div>
+            <div class="form-row">
+              <label>Taxa Máxima &rho;max (%):</label>
+              <input type="number" id="dlgTaxaMax" value="4.00" min="2.0" max="8.0" step="0.5">
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset class="dialog-fieldset">
+          <legend>Precisão Numérica</legend>
+          <div class="form-grid-2">
+            <div class="form-row">
+              <label>Fibras da Seção:</label>
+              <input type="number" id="dlgNFibras" value="400" min="100" max="2000" step="100">
+            </div>
+            <div class="form-row">
+              <label>Pontos no Diagrama (360°):</label>
+              <input type="number" id="dlgNPtsMr" value="72" min="36" max="180" step="12">
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-row">
+              <label>Tolerância &Sigma;N (kN):</label>
+              <input type="number" id="dlgTolN" value="0.05" min="0.001" max="1.0" step="0.01">
+            </div>
+            <div class="form-row">
+              <label>Tolerância Linha Neutra (cm):</label>
+              <input type="number" id="dlgTolLN" value="0.001" min="0.0001" max="0.1" step="0.001">
+            </div>
+          </div>
+        </fieldset>
+      </div>
+      <div class="dialog-footer">
+        <button class="dialog-btn dialog-btn-primary" id="btnSalvarCriterios">Ok</button>
+        <button class="dialog-btn dialog-close">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. DIÁLOGO AVISOS / NORMAS -->
+  <div id="modalAvisos" class="pcalc-modal-backdrop">
+    <div class="pcalc-dialog">
+      <div class="dialog-titlebar">
+        <span>Avisos e Verificações Normativas (NBR 6118)</span>
+        <button class="dialog-close">&times;</button>
+      </div>
+      <div class="dialog-content">
+        <div id="avisosListContainer" class="avisos-list">
+          <!-- Inserido dinamicamente -->
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button class="dialog-btn dialog-btn-primary dialog-close">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. DIÁLOGO MEMÓRIA DE CÁLCULO (RELATÓRIO / IMPRESSÃO) -->
+  <div id="modalMemoria" class="pcalc-modal-backdrop">
+    <div class="pcalc-dialog dialog-report">
+      <div class="dialog-titlebar">
+        <span>Memória de Cálculo Estrutural (NBR 6118)</span>
+        <div class="dialog-titlebar-actions">
+          <button id="btnCopiarRelatorio" class="btn-xs" title="Copiar texto do relatório">📋 Copiar Texto</button>
+          <button id="btnBaixarRelatorioTxt" class="btn-xs" title="Baixar relatório em arquivo .txt">💾 Salvar .txt</button>
+          <button id="btnGerarRelatorioPdf" class="btn-xs btn-primary" title="Gerar e baixar arquivo PDF formatado">📄 Baixar PDF (.pdf)</button>
+          <button id="btnPrintReport" class="btn-xs" title="Imprimir pelo navegador">🖨️ Imprimir</button>
+          <button class="dialog-close">&times;</button>
+        </div>
+      </div>
+      <div class="dialog-content" id="reportContentArea">
+        <!-- Gerado via JS com formatação técnica rica -->
+      </div>
+      <div class="dialog-footer">
+        <button class="dialog-btn" id="btnCopiarRelatorio2">Copiar Texto</button>
+        <button class="dialog-btn" id="btnBaixarRelatorioTxt2">Salvar .txt</button>
+        <button class="dialog-btn dialog-btn-primary" id="btnGerarRelatorioPdf2">📄 Baixar PDF (.pdf)</button>
+        <button class="dialog-btn" id="btnPrintReport2">🖨️ Imprimir</button>
+        <button class="dialog-btn dialog-close">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. DIÁLOGO SOBRE -->
+  <div id="modalSobre" class="pcalc-modal-backdrop">
+    <div class="pcalc-dialog">
+      <div class="dialog-titlebar">
+        <span>Sobre o PCalc Web</span>
+        <button class="dialog-close">&times;</button>
+      </div>
+      <div class="dialog-content text-center">
+        <div class="about-logo">PCalc 1.4 Web</div>
+        <p>Software para Dimensionamento de Pilares de Concreto Armado sob Flexão Composta Oblíqua</p>
+        <p><strong>Norma Técnica:</strong> ABNT NBR 6118:2014 / Revisão 2026</p>
+        <hr class="modal-hr">
+        <p class="about-desc">
+          Implementa não linearidade física e geométrica via Métodos Simplificados (Pilar-Padrão) e <strong>Método Geral com subdivisões ao longo da altura do pilar</strong>, considerando direções desacopladas e acopladas (N, Mx, My, 1/r).
+        </p>
+      </div>
+      <div class="dialog-footer">
+        <button class="dialog-btn dialog-btn-primary dialog-close">Ok</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="lib/html2pdf.bundle.min.js"></script>
+  <script src="pcalc.bundle.js?v=20261018_v3"></script>
+</body>
+</html>
