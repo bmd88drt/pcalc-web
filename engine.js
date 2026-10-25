@@ -813,26 +813,34 @@ export class PCalcEngine {
       }
     }
 
-    // Momento mínimo de 1ª ordem
+    // Momento mínimo de 1ª ordem (NBR 6118, item 11.3.3.4.3) + envoltória mínima
     let mm = null;
     if (this.limMomentoMin && tipo !== undefined) {
       const msxMin = Math.abs(nsd * (0.015 + 0.03 * hy));
       const msyMin = Math.abs(nsd * (0.015 + 0.03 * hx));
       let sx = msxMin, sy = msyMin;
+      const instavel = { x: false, y: false };
+      const errosMm = [];
       if (tipo !== 0 && this.calcular2ord !== 3 && nsd < 0 && !r.erro2Ord) {
         const calc = (m, h, lamb, eixo) => {
-          const e1 = Math.max(Math.abs(topoX), Math.abs(baseX)) / Math.abs(nsd);
-          const l1 = Math.min(90, Math.max(35, (25 + 12.5 * (eixo === 'x' ? e1 : Math.max(Math.abs(topoY), Math.abs(baseY)) / Math.abs(nsd)) / h)));
+          const e1 = eixo === 'x'
+            ? Math.max(Math.abs(topoX), Math.abs(baseX)) / Math.abs(nsd)
+            : Math.max(Math.abs(topoY), Math.abs(baseY)) / Math.abs(nsd);
+          const l1 = Math.min(90, Math.max(35, (25 + 12.5 * e1 / h)));
           if (!(lamb > l1 || this.calcular2ord === 1)) return m;
           const met = this.metodoSegOrd;
           if (met === 1) return this._p1(nsd, h, m);
           if (met === 2) return this._p2(nsd, h, m);
-          if (met === 3) { const v = this._p3(nsd, h, m, eixo, lamb); return v === null ? m : v; }
+          if (met === 3) {
+            const v = this._p3(nsd, h, m, eixo, lamb);
+            if (v === null) { instavel[eixo] = true; errosMm.push(`Direção ${eixo}: falha ao obter a rigidez EIsec sob o momento mínimo.`); return m; }
+            return v;
+          }
           if (met === 4 || met === 5) {
             const q = eixo === 'x'
-              ? this._metodoGeral(nsd, m, -m, 0, 0, met === 4 ? 'x' : 'x', true, false)
+              ? this._metodoGeral(nsd, m, -m, 0, 0, 'x', true, false)
               : this._metodoGeral(nsd, 0, 0, m, -m, 'y', false, true);
-            if (q.erro) { r.erro2OrdMmin = q.erro; return m; }
+            if (q.erro) { instavel[eixo] = true; errosMm.push(`Direção ${eixo}: ${q.erro}`); return m; }
             return Math.max(...(eixo === 'x' ? q.mdX : q.mdY).map(Math.abs));
           }
           return m;
@@ -840,13 +848,29 @@ export class PCalcEngine {
         sx = calc(msxMin, hy, p.lambdaX, 'x');
         sy = calc(msyMin, hx, p.lambdaY, 'y');
       }
-      let fsMm = 1e10;
-      for (let i = 0; i < 100; i++) {
-        const ph = i * 2 * Math.PI / 100;
-        const q = this.fatorSeguranca(sx * Math.cos(ph), sy * Math.sin(ph), r.curvaMrd);
-        fsMm = Math.min(fsMm, q.fs);
+      if (errosMm.length) r.erro2OrdMmin = errosMm.join(' ');
+
+      // Envoltória elíptica (Msx/Msx,mín)² + (Msy/Msy,mín)² = 1, com e sem 2ª ordem
+      const nEnv = 100;
+      const envoltoria1 = [], envoltoria2 = [];
+      let fsMm = 1e10, ptCrit = null;
+      for (let i = 0; i < nEnv; i++) {
+        const ph = i * 2 * Math.PI / nEnv;
+        const c = Math.cos(ph), s2 = Math.sin(ph);
+        envoltoria1.push({ mx: msxMin * c, my: msyMin * s2 });
+        const mx = sx * c, my = sy * s2;
+        envoltoria2.push({ mx, my });
+        const q = this.fatorSeguranca(mx, my, r.curvaMrd);
+        if (q.fs < fsMm) { fsMm = q.fs; ptCrit = { mx, my, mrdX: q.mrdX, mrdY: q.mrdY, fs: q.fs }; }
       }
-      mm = { msx: msxMin, msy: msyMin, msx2: sx, msy2: sy, fs: fsMm };
+      // Sem equilíbrio de 2ª ordem sob o momento mínimo => instabilidade: pilar não verifica
+      const algumInstavel = instavel.x || instavel.y;
+      if (algumInstavel) fsMm = 0;
+      mm = {
+        msx: msxMin, msy: msyMin, msx2: sx, msy2: sy, fs: fsMm,
+        instavelX: instavel.x, instavelY: instavel.y, instavel: algumInstavel,
+        envoltoria1, envoltoria2, ptCrit
+      };
     }
     r.mmin = mm;
 

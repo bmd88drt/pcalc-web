@@ -823,26 +823,34 @@ class PCalcEngine {
       }
     }
 
-    // Momento mínimo de 1ª ordem
+    // Momento mínimo de 1ª ordem (NBR 6118, item 11.3.3.4.3) + envoltória mínima
     let mm = null;
     if (this.limMomentoMin && tipo !== undefined) {
       const msxMin = Math.abs(nsd * (0.015 + 0.03 * hy));
       const msyMin = Math.abs(nsd * (0.015 + 0.03 * hx));
       let sx = msxMin, sy = msyMin;
+      const instavel = { x: false, y: false };
+      const errosMm = [];
       if (tipo !== 0 && this.calcular2ord !== 3 && nsd < 0 && !r.erro2Ord) {
         const calc = (m, h, lamb, eixo) => {
-          const e1 = Math.max(Math.abs(topoX), Math.abs(baseX)) / Math.abs(nsd);
-          const l1 = Math.min(90, Math.max(35, (25 + 12.5 * (eixo === 'x' ? e1 : Math.max(Math.abs(topoY), Math.abs(baseY)) / Math.abs(nsd)) / h)));
+          const e1 = eixo === 'x'
+            ? Math.max(Math.abs(topoX), Math.abs(baseX)) / Math.abs(nsd)
+            : Math.max(Math.abs(topoY), Math.abs(baseY)) / Math.abs(nsd);
+          const l1 = Math.min(90, Math.max(35, (25 + 12.5 * e1 / h)));
           if (!(lamb > l1 || this.calcular2ord === 1)) return m;
           const met = this.metodoSegOrd;
           if (met === 1) return this._p1(nsd, h, m);
           if (met === 2) return this._p2(nsd, h, m);
-          if (met === 3) { const v = this._p3(nsd, h, m, eixo, lamb); return v === null ? m : v; }
+          if (met === 3) {
+            const v = this._p3(nsd, h, m, eixo, lamb);
+            if (v === null) { instavel[eixo] = true; errosMm.push(`Direção ${eixo}: falha ao obter a rigidez EIsec sob o momento mínimo.`); return m; }
+            return v;
+          }
           if (met === 4 || met === 5) {
             const q = eixo === 'x'
-              ? this._metodoGeral(nsd, m, -m, 0, 0, met === 4 ? 'x' : 'x', true, false)
+              ? this._metodoGeral(nsd, m, -m, 0, 0, 'x', true, false)
               : this._metodoGeral(nsd, 0, 0, m, -m, 'y', false, true);
-            if (q.erro) { r.erro2OrdMmin = q.erro; return m; }
+            if (q.erro) { instavel[eixo] = true; errosMm.push(`Direção ${eixo}: ${q.erro}`); return m; }
             return Math.max(...(eixo === 'x' ? q.mdX : q.mdY).map(Math.abs));
           }
           return m;
@@ -850,13 +858,29 @@ class PCalcEngine {
         sx = calc(msxMin, hy, p.lambdaX, 'x');
         sy = calc(msyMin, hx, p.lambdaY, 'y');
       }
-      let fsMm = 1e10;
-      for (let i = 0; i < 100; i++) {
-        const ph = i * 2 * Math.PI / 100;
-        const q = this.fatorSeguranca(sx * Math.cos(ph), sy * Math.sin(ph), r.curvaMrd);
-        fsMm = Math.min(fsMm, q.fs);
+      if (errosMm.length) r.erro2OrdMmin = errosMm.join(' ');
+
+      // Envoltória elíptica (Msx/Msx,mín)² + (Msy/Msy,mín)² = 1, com e sem 2ª ordem
+      const nEnv = 100;
+      const envoltoria1 = [], envoltoria2 = [];
+      let fsMm = 1e10, ptCrit = null;
+      for (let i = 0; i < nEnv; i++) {
+        const ph = i * 2 * Math.PI / nEnv;
+        const c = Math.cos(ph), s2 = Math.sin(ph);
+        envoltoria1.push({ mx: msxMin * c, my: msyMin * s2 });
+        const mx = sx * c, my = sy * s2;
+        envoltoria2.push({ mx, my });
+        const q = this.fatorSeguranca(mx, my, r.curvaMrd);
+        if (q.fs < fsMm) { fsMm = q.fs; ptCrit = { mx, my, mrdX: q.mrdX, mrdY: q.mrdY, fs: q.fs }; }
       }
-      mm = { msx: msxMin, msy: msyMin, msx2: sx, msy2: sy, fs: fsMm };
+      // Sem equilíbrio de 2ª ordem sob o momento mínimo => instabilidade: pilar não verifica
+      const algumInstavel = instavel.x || instavel.y;
+      if (algumInstavel) fsMm = 0;
+      mm = {
+        msx: msxMin, msy: msyMin, msx2: sx, msy2: sy, fs: fsMm,
+        instavelX: instavel.x, instavelY: instavel.y, instavel: algumInstavel,
+        envoltoria1, envoltoria2, ptCrit
+      };
     }
     r.mmin = mm;
 
@@ -1629,7 +1653,7 @@ class PCalcRenderer {
   // =========================================================================
   // 2. DIAGRAMA FCO (Mx × My)
   // =========================================================================
-  renderizarDiagramaFCO(canvas, curvaMrd, msdX = 0, msdY = 0, seguranca = null, transform = { zoom: 1, panX: 0, panY: 0 }) {
+  renderizarDiagramaFCO(canvas, curvaMrd, msdX = 0, msdY = 0, seguranca = null, transform = { zoom: 1, panX: 0, panY: 0 }, mmin = null) {
     if (!canvas) return;
     const { ctx, width, height } = this.setupCanvas(canvas);
 
@@ -1642,6 +1666,9 @@ class PCalcRenderer {
     }
     if (Math.abs(msdX) > maxM) maxM = Math.abs(msdX);
     if (Math.abs(msdY) > maxM) maxM = Math.abs(msdY);
+    if (mmin) {
+      maxM = Math.max(maxM, Math.abs(mmin.msx2 || 0), Math.abs(mmin.msy2 || 0), Math.abs(mmin.msx || 0), Math.abs(mmin.msy || 0));
+    }
     maxM *= 1.25;
 
     const zoom = transform.zoom || 1.0;
@@ -1760,7 +1787,98 @@ class PCalcRenderer {
       ctx.fillText(labelFS, ptX + 10, ptY - 8);
     }
 
+    // Envoltória de momentos mínimos (NBR 6118, 11.3.3.4.3)
+    if (mmin && mmin.envoltoria2 && mmin.envoltoria2.length > 2) {
+      const okMm = mmin.fs >= 1.0 && !mmin.instavel;
+      const corMm = okMm ? (estiloBege ? '#b45309' : '#f59e0b') : '#dc2626';
+      const tracar = (pts) => {
+        ctx.beginPath();
+        pts.forEach((p, i) => { const x = toX(p.my), y = toY(p.mx); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+        ctx.closePath();
+      };
+
+      // 1ª ordem (tracejada)
+      if (mmin.envoltoria1) {
+        tracar(mmin.envoltoria1);
+        ctx.setLineDash([5, 4]);
+        ctx.strokeStyle = corMm;
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Com 2ª ordem (cheia)
+      tracar(mmin.envoltoria2);
+      ctx.fillStyle = okMm ? 'rgba(245, 158, 11, 0.12)' : 'rgba(220, 38, 38, 0.12)';
+      ctx.fill();
+      ctx.strokeStyle = corMm;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Ponto crítico da envoltória
+      const pc = mmin.ptCrit;
+      if (pc) {
+        const px = toX(pc.my), py = toY(pc.mx);
+        if (pc.mrdX !== undefined && (Math.abs(pc.mrdX) + Math.abs(pc.mrdY)) > 1e-6) {
+          ctx.setLineDash([3, 3]);
+          ctx.strokeStyle = corMm;
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(toX(pc.mrdY), toY(pc.mrdX));
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+        ctx.beginPath();
+        ctx.arc(px, py, 5, 0, 2 * Math.PI);
+        ctx.fillStyle = corMm;
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = corMm;
+        ctx.font = 'bold 11px "JetBrains Mono", monospace';
+        ctx.textAlign = 'left';
+        const lbl = mmin.instavel ? 'Mín: INSTÁVEL' : `Mín: FS = ${mmin.fs.toFixed(2)}`;
+        ctx.fillText(lbl, px + 8, py + 14);
+      }
+    }
+
     ctx.restore(); // Fecha o clipping interno
+
+    // Legenda
+    if (mmin && mmin.envoltoria2) {
+      const okMm = mmin.fs >= 1.0 && !mmin.instavel;
+      const corMm = okMm ? (estiloBege ? '#b45309' : '#f59e0b') : '#dc2626';
+      const corMrd = estiloBege ? '#059669' : this.theme.curveStroke;
+      const linhas = [
+        { cor: corMrd, dash: [], txt: 'Mrd (resistente)' },
+        { cor: corMm, dash: [5, 4], txt: `M1d,mín  x=${mmin.msx.toFixed(1)} y=${mmin.msy.toFixed(1)}` },
+        { cor: corMm, dash: [], txt: `c/ 2ª ord. x=${mmin.instavelX ? '∞' : mmin.msx2.toFixed(1)} y=${mmin.instavelY ? '∞' : mmin.msy2.toFixed(1)}` }
+      ];
+      ctx.save();
+      ctx.font = '10px "JetBrains Mono", monospace';
+      const w = Math.max(...linhas.map(l => ctx.measureText(l.txt).width)) + 34;
+      const h = linhas.length * 14 + 8;
+      const lx = plotX + 6, ly = plotY + 6;
+      ctx.fillStyle = estiloBege ? 'rgba(255, 252, 240, 0.92)' : 'rgba(15, 23, 42, 0.85)';
+      ctx.strokeStyle = estiloBege ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.2)';
+      ctx.lineWidth = 1;
+      ctx.fillRect(lx, ly, w, h);
+      ctx.strokeRect(lx, ly, w, h);
+      linhas.forEach((l, i) => {
+        const yy = ly + 11 + i * 14;
+        ctx.strokeStyle = l.cor;
+        ctx.lineWidth = 2;
+        ctx.setLineDash(l.dash);
+        ctx.beginPath(); ctx.moveTo(lx + 6, yy - 3); ctx.lineTo(lx + 24, yy - 3); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = estiloBege ? '#222222' : '#e5e7eb';
+        ctx.textAlign = 'left';
+        ctx.fillText(l.txt, lx + 28, yy);
+      });
+      ctx.restore();
+    }
   }
 
   // =========================================================================
@@ -4030,17 +4148,40 @@ function gerarAvisosNormativos() {
     });
   }
 
-  // Verificação de Segurança (FS)
+  // Verificação de Segurança (FS) — inclui momento mínimo e instabilidade
   if (estado.ultimoResultado && estado.ultimoResultado.resultados) {
-    const minFS = Math.min(...estado.ultimoResultado.resultados.map(r => r.seguranca ? r.seguranca.fs : 1.0));
+    const res = estado.ultimoResultado.resultados;
+    const minFS = estado.ultimoResultado.fsMinGeral !== undefined
+      ? estado.ultimoResultado.fsMinGeral
+      : Math.min(...res.map(r => r.fsComb ?? (r.seguranca ? r.seguranca.fs : 1.0)));
     if (minFS < 1.0) {
       avisos.push({
         tipo: 'danger',
         icone: '⛔',
-        titulo: 'Capacidade Resistente Insuficiente (ELS/ELU)',
+        titulo: 'Capacidade Resistente Insuficiente (ELU)',
         texto: `O fator de segurança mínimo obtido é FS = ${minFS.toFixed(2)} < 1.00. O pilar NÃO atende às solicitações de cálculo!`
       });
     }
+    res.forEach(r => {
+      const mm = r.mmin;
+      if (!mm) return;
+      if (mm.instavel) {
+        const dirs = [mm.instavelX ? 'x' : null, mm.instavelY ? 'y' : null].filter(Boolean).join(' e ');
+        avisos.push({
+          tipo: 'danger',
+          icone: '⛔',
+          titulo: `Instabilidade sob Momento Mínimo — Comb. ${r.combId} (Item 11.3.3.4.3 / 15.8)`,
+          texto: `Os efeitos de 2ª ordem do momento mínimo não convergiram na direção ${dirs}: a seção não admite equilíbrio com a rigidez reduzida. FS considerado = 0. Aumente a seção ou a armadura nessa direção.`
+        });
+      } else if (r.mminGoverna) {
+        avisos.push({
+          tipo: 'warning',
+          icone: '⚠️',
+          titulo: `Momento Mínimo Governa — Comb. ${r.combId} (Item 11.3.3.4.3)`,
+          texto: `A envoltória mínima (M1d,mín,x = ${mm.msx.toFixed(1)} kN·m; M1d,mín,y = ${mm.msy.toFixed(1)} kN·m) resulta em FS = ${mm.fs.toFixed(2)}, menor que o FS das seções com os esforços informados (${r.fsMin >= 999 ? '> 999' : r.fsMin.toFixed(2)}).`
+        });
+      }
+    });
   }
 
   return avisos;
@@ -4479,7 +4620,8 @@ function atualizarVisualizacaoResultados() {
 
   const secK = estado.secAtivaIdx;
   const fsSec = (combRes.secoes.fs && combRes.secoes.fs[secK] != null) ? combRes.secoes.fs[secK] : (combRes.seguranca ? combRes.seguranca.fs : 1.0);
-  const fsComb = combRes.fsMin !== undefined ? combRes.fsMin : (combRes.seguranca ? combRes.seguranca.fs : 1.0);
+  // FS da combinação = mínimo entre as seções e a envoltória de momento mínimo
+  const fsComb = combRes.fsComb !== undefined ? combRes.fsComb : (combRes.fsMin !== undefined ? combRes.fsMin : (combRes.seguranca ? combRes.seguranca.fs : 1.0));
   const fsGeral = (estado.ultimoResultado && estado.ultimoResultado.fsMinGeral !== undefined) ? estado.ultimoResultado.fsMinGeral : fsComb;
   const seguroGeral = (estado.ultimoResultado && estado.ultimoResultado.seguro !== undefined) ? estado.ultimoResultado.seguro : (fsGeral >= 1.0);
 
@@ -4493,6 +4635,23 @@ function atualizarVisualizacaoResultados() {
   if (el.txtFSCombVal) {
     el.txtFSCombVal.textContent = `FS = ${fsComb >= 999 ? '> 999' : fsComb.toFixed(2)}`;
     el.txtFSCombVal.className = fsComb >= 1.0 ? 'val-safe' : 'val-danger';
+  }
+
+  // 2b. FS da envoltória de momento mínimo (NBR 6118, 11.3.3.4.3)
+  const txtFSMmin = document.getElementById('txtFSMminVal');
+  if (txtFSMmin) {
+    const mm = combRes.mmin;
+    if (!mm) {
+      txtFSMmin.textContent = 'não verificado';
+      txtFSMmin.className = 'val-fs-sec';
+    } else {
+      const governa = combRes.mminGoverna || mm.instavel;
+      const valor = mm.fs >= 999 ? '> 999' : mm.fs.toFixed(2);
+      const extra = mm.instavel ? ' (instável)' : (governa ? ' (governa)' : '');
+      txtFSMmin.textContent = `FS = ${valor}${extra}`;
+      txtFSMmin.className = mm.fs >= 1.0 ? 'val-safe' : 'val-danger';
+      txtFSMmin.title = `M1d,mín,x = ${mm.msx.toFixed(1)} kN·m → ${mm.msx2.toFixed(1)} kN·m (c/ 2ª ordem)\nM1d,mín,y = ${mm.msy.toFixed(1)} kN·m → ${mm.msy2.toFixed(1)} kN·m (c/ 2ª ordem)`;
+    }
   }
 
   // 3. Atualiza Fator de Segurança Geral (Crítico de todo o pilar)
@@ -4561,7 +4720,7 @@ function atualizarGraficoResultadoCentral() {
 
   switch (estado.graficoAtivo) {
     case 'fco':
-      renderer.renderizarDiagramaFCO(el.canvasResultados, combRes.curvaMrd, msdX_sec, msdY_sec, segurancaSec, transform);
+      renderer.renderizarDiagramaFCO(el.canvasResultados, combRes.curvaMrd, msdX_sec, msdY_sec, segurancaSec, transform, combRes.mmin);
       break;
     case 'fcnx':
       renderer.renderizarDiagramaFCN(el.canvasResultados, engine, combRes, 'x', transform);

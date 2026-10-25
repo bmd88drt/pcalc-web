@@ -620,7 +620,7 @@ export class PCalcRenderer {
   // =========================================================================
   // 2. DIAGRAMA FCO (Mx × My)
   // =========================================================================
-  renderizarDiagramaFCO(canvas, curvaMrd, msdX = 0, msdY = 0, seguranca = null, transform = { zoom: 1, panX: 0, panY: 0 }) {
+  renderizarDiagramaFCO(canvas, curvaMrd, msdX = 0, msdY = 0, seguranca = null, transform = { zoom: 1, panX: 0, panY: 0 }, mmin = null) {
     if (!canvas) return;
     const { ctx, width, height } = this.setupCanvas(canvas);
 
@@ -633,6 +633,9 @@ export class PCalcRenderer {
     }
     if (Math.abs(msdX) > maxM) maxM = Math.abs(msdX);
     if (Math.abs(msdY) > maxM) maxM = Math.abs(msdY);
+    if (mmin) {
+      maxM = Math.max(maxM, Math.abs(mmin.msx2 || 0), Math.abs(mmin.msy2 || 0), Math.abs(mmin.msx || 0), Math.abs(mmin.msy || 0));
+    }
     maxM *= 1.25;
 
     const zoom = transform.zoom || 1.0;
@@ -751,7 +754,98 @@ export class PCalcRenderer {
       ctx.fillText(labelFS, ptX + 10, ptY - 8);
     }
 
+    // Envoltória de momentos mínimos (NBR 6118, 11.3.3.4.3)
+    if (mmin && mmin.envoltoria2 && mmin.envoltoria2.length > 2) {
+      const okMm = mmin.fs >= 1.0 && !mmin.instavel;
+      const corMm = okMm ? (estiloBege ? '#b45309' : '#f59e0b') : '#dc2626';
+      const tracar = (pts) => {
+        ctx.beginPath();
+        pts.forEach((p, i) => { const x = toX(p.my), y = toY(p.mx); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+        ctx.closePath();
+      };
+
+      // 1ª ordem (tracejada)
+      if (mmin.envoltoria1) {
+        tracar(mmin.envoltoria1);
+        ctx.setLineDash([5, 4]);
+        ctx.strokeStyle = corMm;
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Com 2ª ordem (cheia)
+      tracar(mmin.envoltoria2);
+      ctx.fillStyle = okMm ? 'rgba(245, 158, 11, 0.12)' : 'rgba(220, 38, 38, 0.12)';
+      ctx.fill();
+      ctx.strokeStyle = corMm;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Ponto crítico da envoltória
+      const pc = mmin.ptCrit;
+      if (pc) {
+        const px = toX(pc.my), py = toY(pc.mx);
+        if (pc.mrdX !== undefined && (Math.abs(pc.mrdX) + Math.abs(pc.mrdY)) > 1e-6) {
+          ctx.setLineDash([3, 3]);
+          ctx.strokeStyle = corMm;
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(toX(pc.mrdY), toY(pc.mrdX));
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+        ctx.beginPath();
+        ctx.arc(px, py, 5, 0, 2 * Math.PI);
+        ctx.fillStyle = corMm;
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = corMm;
+        ctx.font = 'bold 11px "JetBrains Mono", monospace';
+        ctx.textAlign = 'left';
+        const lbl = mmin.instavel ? 'Mín: INSTÁVEL' : `Mín: FS = ${mmin.fs.toFixed(2)}`;
+        ctx.fillText(lbl, px + 8, py + 14);
+      }
+    }
+
     ctx.restore(); // Fecha o clipping interno
+
+    // Legenda
+    if (mmin && mmin.envoltoria2) {
+      const okMm = mmin.fs >= 1.0 && !mmin.instavel;
+      const corMm = okMm ? (estiloBege ? '#b45309' : '#f59e0b') : '#dc2626';
+      const corMrd = estiloBege ? '#059669' : this.theme.curveStroke;
+      const linhas = [
+        { cor: corMrd, dash: [], txt: 'Mrd (resistente)' },
+        { cor: corMm, dash: [5, 4], txt: `M1d,mín  x=${mmin.msx.toFixed(1)} y=${mmin.msy.toFixed(1)}` },
+        { cor: corMm, dash: [], txt: `c/ 2ª ord. x=${mmin.instavelX ? '∞' : mmin.msx2.toFixed(1)} y=${mmin.instavelY ? '∞' : mmin.msy2.toFixed(1)}` }
+      ];
+      ctx.save();
+      ctx.font = '10px "JetBrains Mono", monospace';
+      const w = Math.max(...linhas.map(l => ctx.measureText(l.txt).width)) + 34;
+      const h = linhas.length * 14 + 8;
+      const lx = plotX + 6, ly = plotY + 6;
+      ctx.fillStyle = estiloBege ? 'rgba(255, 252, 240, 0.92)' : 'rgba(15, 23, 42, 0.85)';
+      ctx.strokeStyle = estiloBege ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.2)';
+      ctx.lineWidth = 1;
+      ctx.fillRect(lx, ly, w, h);
+      ctx.strokeRect(lx, ly, w, h);
+      linhas.forEach((l, i) => {
+        const yy = ly + 11 + i * 14;
+        ctx.strokeStyle = l.cor;
+        ctx.lineWidth = 2;
+        ctx.setLineDash(l.dash);
+        ctx.beginPath(); ctx.moveTo(lx + 6, yy - 3); ctx.lineTo(lx + 24, yy - 3); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = estiloBege ? '#222222' : '#e5e7eb';
+        ctx.textAlign = 'left';
+        ctx.fillText(l.txt, lx + 28, yy);
+      });
+      ctx.restore();
+    }
   }
 
   // =========================================================================

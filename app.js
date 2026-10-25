@@ -1238,17 +1238,40 @@ function gerarAvisosNormativos() {
     });
   }
 
-  // Verificação de Segurança (FS)
+  // Verificação de Segurança (FS) — inclui momento mínimo e instabilidade
   if (estado.ultimoResultado && estado.ultimoResultado.resultados) {
-    const minFS = Math.min(...estado.ultimoResultado.resultados.map(r => r.seguranca ? r.seguranca.fs : 1.0));
+    const res = estado.ultimoResultado.resultados;
+    const minFS = estado.ultimoResultado.fsMinGeral !== undefined
+      ? estado.ultimoResultado.fsMinGeral
+      : Math.min(...res.map(r => r.fsComb ?? (r.seguranca ? r.seguranca.fs : 1.0)));
     if (minFS < 1.0) {
       avisos.push({
         tipo: 'danger',
         icone: '⛔',
-        titulo: 'Capacidade Resistente Insuficiente (ELS/ELU)',
+        titulo: 'Capacidade Resistente Insuficiente (ELU)',
         texto: `O fator de segurança mínimo obtido é FS = ${minFS.toFixed(2)} < 1.00. O pilar NÃO atende às solicitações de cálculo!`
       });
     }
+    res.forEach(r => {
+      const mm = r.mmin;
+      if (!mm) return;
+      if (mm.instavel) {
+        const dirs = [mm.instavelX ? 'x' : null, mm.instavelY ? 'y' : null].filter(Boolean).join(' e ');
+        avisos.push({
+          tipo: 'danger',
+          icone: '⛔',
+          titulo: `Instabilidade sob Momento Mínimo — Comb. ${r.combId} (Item 11.3.3.4.3 / 15.8)`,
+          texto: `Os efeitos de 2ª ordem do momento mínimo não convergiram na direção ${dirs}: a seção não admite equilíbrio com a rigidez reduzida. FS considerado = 0. Aumente a seção ou a armadura nessa direção.`
+        });
+      } else if (r.mminGoverna) {
+        avisos.push({
+          tipo: 'warning',
+          icone: '⚠️',
+          titulo: `Momento Mínimo Governa — Comb. ${r.combId} (Item 11.3.3.4.3)`,
+          texto: `A envoltória mínima (M1d,mín,x = ${mm.msx.toFixed(1)} kN·m; M1d,mín,y = ${mm.msy.toFixed(1)} kN·m) resulta em FS = ${mm.fs.toFixed(2)}, menor que o FS das seções com os esforços informados (${r.fsMin >= 999 ? '> 999' : r.fsMin.toFixed(2)}).`
+        });
+      }
+    });
   }
 
   return avisos;
@@ -1687,7 +1710,8 @@ function atualizarVisualizacaoResultados() {
 
   const secK = estado.secAtivaIdx;
   const fsSec = (combRes.secoes.fs && combRes.secoes.fs[secK] != null) ? combRes.secoes.fs[secK] : (combRes.seguranca ? combRes.seguranca.fs : 1.0);
-  const fsComb = combRes.fsMin !== undefined ? combRes.fsMin : (combRes.seguranca ? combRes.seguranca.fs : 1.0);
+  // FS da combinação = mínimo entre as seções e a envoltória de momento mínimo
+  const fsComb = combRes.fsComb !== undefined ? combRes.fsComb : (combRes.fsMin !== undefined ? combRes.fsMin : (combRes.seguranca ? combRes.seguranca.fs : 1.0));
   const fsGeral = (estado.ultimoResultado && estado.ultimoResultado.fsMinGeral !== undefined) ? estado.ultimoResultado.fsMinGeral : fsComb;
   const seguroGeral = (estado.ultimoResultado && estado.ultimoResultado.seguro !== undefined) ? estado.ultimoResultado.seguro : (fsGeral >= 1.0);
 
@@ -1701,6 +1725,23 @@ function atualizarVisualizacaoResultados() {
   if (el.txtFSCombVal) {
     el.txtFSCombVal.textContent = `FS = ${fsComb >= 999 ? '> 999' : fsComb.toFixed(2)}`;
     el.txtFSCombVal.className = fsComb >= 1.0 ? 'val-safe' : 'val-danger';
+  }
+
+  // 2b. FS da envoltória de momento mínimo (NBR 6118, 11.3.3.4.3)
+  const txtFSMmin = document.getElementById('txtFSMminVal');
+  if (txtFSMmin) {
+    const mm = combRes.mmin;
+    if (!mm) {
+      txtFSMmin.textContent = 'não verificado';
+      txtFSMmin.className = 'val-fs-sec';
+    } else {
+      const governa = combRes.mminGoverna || mm.instavel;
+      const valor = mm.fs >= 999 ? '> 999' : mm.fs.toFixed(2);
+      const extra = mm.instavel ? ' (instável)' : (governa ? ' (governa)' : '');
+      txtFSMmin.textContent = `FS = ${valor}${extra}`;
+      txtFSMmin.className = mm.fs >= 1.0 ? 'val-safe' : 'val-danger';
+      txtFSMmin.title = `M1d,mín,x = ${mm.msx.toFixed(1)} kN·m → ${mm.msx2.toFixed(1)} kN·m (c/ 2ª ordem)\nM1d,mín,y = ${mm.msy.toFixed(1)} kN·m → ${mm.msy2.toFixed(1)} kN·m (c/ 2ª ordem)`;
+    }
   }
 
   // 3. Atualiza Fator de Segurança Geral (Crítico de todo o pilar)
@@ -1769,7 +1810,7 @@ function atualizarGraficoResultadoCentral() {
 
   switch (estado.graficoAtivo) {
     case 'fco':
-      renderer.renderizarDiagramaFCO(el.canvasResultados, combRes.curvaMrd, msdX_sec, msdY_sec, segurancaSec, transform);
+      renderer.renderizarDiagramaFCO(el.canvasResultados, combRes.curvaMrd, msdX_sec, msdY_sec, segurancaSec, transform, combRes.mmin);
       break;
     case 'fcnx':
       renderer.renderizarDiagramaFCN(el.canvasResultados, engine, combRes, 'x', transform);
